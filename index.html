@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a"><link rel="manifest" href="manifest.json">
+<title>Jeff Bingo V3</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f1f5f9;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif}
+.wrap{max-width:820px;margin:auto;padding:14px}.hero{background:#0f172a;color:#fff;border-radius:24px;padding:20px;margin-bottom:12px}
+h1{margin:0;font-size:25px}.sub{font-size:12px;opacity:.78;margin-top:5px}.card{background:#fff;border-radius:18px;padding:15px;margin:11px 0;box-shadow:0 2px 12px #0001}
+h2{font-size:18px;margin:0 0 11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+button,.file{display:block;text-align:center;width:100%;border:0;border-radius:13px;padding:13px;font-size:14px;font-weight:800;background:#0f172a;color:#fff;cursor:pointer}
+button:disabled{opacity:.5}.secondary,.file{background:#e2e8f0;color:#0f172a}.primary{background:#2563eb}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0}
+select,input[type=text]{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-size:14px}
+.row select{width:auto;min-width:110px}
+.ball{display:inline-flex;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-weight:800;margin:3px}.hot{background:#dc2626}.blue{background:#2563eb}
+.status{font-size:12px;color:#64748b;line-height:1.6;white-space:pre-wrap}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.stats div{background:#f8fafc;border-radius:12px;text-align:center;padding:9px}.stats b{display:block;font-size:18px}.tiny{font-size:11px;color:#64748b}
+progress{width:100%;height:10px}.good{color:#15803d;font-weight:800}.warn{color:#b45309;font-weight:800}.bad{color:#b91c1c;font-weight:800}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:7px;border-bottom:1px solid #e2e8f0;text-align:right}td:first-child,th:first-child{text-align:left}
+.combo{padding:8px 0;border-bottom:1px solid #e2e8f0}.note{font-size:12px;color:#475569;line-height:1.65}details{margin-top:10px}summary{font-size:13px;color:#475569;cursor:pointer}
+</style>
+</head>
+<body><div class="wrap">
+<div class="hero"><h1>🎯 Jeff Bingo V3</h1><div class="sub">一鍵抓官方歷史獎號・樣本外回測・隨機基準・候選池</div></div>
+
+<div class="card">
+<h2>① 資料</h2>
+<div class="row"><span>抓取範圍</span><select id="days"><option value="5">最近 5 天（約 1000 期）</option><option value="10" selected>最近 10 天（約 2000 期）</option><option value="20">最近 20 天（約 4000 期）</option></select></div>
+<button class="primary" id="goBtn" onclick="oneClick()">🌐 一鍵抓取歷史獎號並分析</button>
+<div class="grid" style="margin-top:9px">
+<label class="file">📂 匯入 CSV<input id="file" type="file" hidden></label>
+<button class="secondary" onclick="loadDemo()">載入測試資料</button>
+</div>
+<progress id="fprog" value="0" max="100" style="display:none;margin-top:9px"></progress>
+<div class="status" id="status" style="margin-top:9px">尚未載入資料。</div>
+<details><summary>抓取失敗時（跨網域被擋）</summary>
+<div class="note">程式會依序嘗試：直接連官方 API → 公用 CORS 代理。若都失敗，可在下方填入你自己的代理網址前綴（例如 Cloudflare Worker：https://xxx.workers.dev/?url=），或改用 CSV。</div>
+<input type="text" id="proxy" placeholder="自訂代理前綴（可留空）" style="margin-top:8px"></details>
+</div>
+
+<div class="card">
+<h2>② 自動最佳化</h2>
+<div class="row"><span>每組選號數 k</span><select id="kOpt"><option>5</option><option selected>6</option><option>7</option><option>8</option><option>10</option></select></div>
+<div class="row"><span>最佳化試驗次數</span><select id="trials"><option>300</option><option selected>1000</option><option>3000</option></select></div>
+<div class="row"><span>回測期數</span><select id="btN"><option>300</option><option selected>600</option><option>1000</option></select></div>
+<button onclick="optimize()">🧠 只重新最佳化</button>
+<div id="optStatus" class="status" style="margin-top:9px"></div>
+<progress id="prog" value="0" max="100" style="display:none"></progress>
+</div>
+
+<div class="card">
+<h2>③ 模型診斷（樣本外）</h2>
+<div class="stats">
+<div><span class="tiny">模型平均命中</span><b id="mAvg">--</b></div>
+<div><span class="tiny">隨機期望</span><b id="rAvg">--</b></div>
+<div><span class="tiny">差異</span><b id="delta">--</b></div>
+<div><span class="tiny">證據</span><b id="evidence">--</b></div>
+</div>
+<div id="diag" class="note" style="margin-top:10px">尚未完成回測。</div>
+</div>
+
+<div class="card">
+<h2>④ 本期候選池</h2>
+<div class="status">紅色＝分數最高的前 6 個；候選池 16 號。</div>
+<div id="pool" style="margin-top:8px">--</div>
+</div>
+
+<div class="card">
+<h2>⑤ 產生候選組合</h2>
+<div class="row"><span>組數</span><select id="sets"><option>3</option><option selected>5</option><option>10</option></select></div>
+<button onclick="makeCombos()">🎲 產生組合（號碼數＝上方 k）</button>
+<div id="combos" style="margin-top:8px"></div>
+</div>
+
+<div class="card"><h2>⑥ 號碼排名</h2><div id="rank">--</div></div>
+
+<div class="card"><h2>使用原則</h2><div class="note">
+「高勝率」在這裡的定義是：模型在<b>沒參與調參的最新資料</b>上，平均命中數是否穩定高於隨機期望（k/4）。多數情況下不會，那是正常的：賓果賓果每期 20 個號碼由機器隨機開出，歷史頻率、遺漏值都不含下一期的資訊。請把結果當成統計研究與娛樂工具。
+</div></div>
+</div>
+
+<script>
+const NUM=80,NF=7,DEC=.94,BASE="https://api.taiwanlottery.com/TLCAPIWeB/Lottery/BingoResult";
+let draws=[],best=null,route=null,lastErr="",N=0,occ,cum,rec;
+const $=id=>document.getElementById(id), tick=()=>new Promise(r=>setTimeout(r));
+const setStatus=t=>$("status").textContent=t;
+
+/* ---------- 資料預處理（一次算好前綴和，之後每次特徵都是 O(1)） ---------- */
+function prep(){
+ N=draws.length;occ=new Uint8Array(N*NUM);cum=new Int32Array((N+1)*NUM);rec=new Float32Array((N+1)*NUM);
+ for(let t=0;t<N;t++){for(const n of draws[t])occ[t*NUM+n-1]=1;
+  for(let i=0;i<NUM;i++){const o=occ[t*NUM+i];cum[(t+1)*NUM+i]=cum[t*NUM+i]+o;rec[(t+1)*NUM+i]=rec[t*NUM+i]*DEC+o}}
+}
+function zs(a){const m=a.reduce((s,x)=>s+x,0)/a.length,sd=Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/a.length)||1;return a.map(x=>(x-m)/sd)}
+// 只使用 draws[0..t-1]（時間順序：0 最舊），t=N 代表預測「下一期」
+function featAt(t){
+ const F=new Float32Array(NUM*NF),put=(f,arr)=>zs(arr).forEach((v,i)=>F[i*NF+f]=v),ix=Array.from({length:NUM},(_,i)=>i);
+ [20,50,100,300].forEach((w,f)=>{const s=Math.max(0,t-w);put(f,ix.map(i=>cum[t*NUM+i]-cum[s*NUM+i]))});
+ put(4,ix.map(i=>{for(let j=t-1;j>=Math.max(0,t-300);j--)if(occ[j*NUM+i])return t-1-j;return 300}));
+ put(5,ix.map(i=>rec[t*NUM+i]));
+ put(6,ix.map(i=>t>0?occ[(t-1)*NUM+i]:0));
+ return F;
+}
+const scoreOf=(F,w)=>{const s=new Float64Array(NUM);for(let i=0;i<NUM;i++){let x=0;for(let f=0;f<NF;f++)x+=w[f]*F[i*NF+f];s[i]=x}return s};
+const topIdx=(s,k)=>Array.from({length:NUM},(_,i)=>i).sort((a,b)=>s[b]-s[a]).slice(0,k);
+function hitsList(w,k,T,M,ids){return ids.map(j=>{let h=0;for(const i of topIdx(scoreOf(M[j],w),k))h+=occ[T[j]*NUM+i];return h})}
+const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+
+/* ---------- 最佳化：前 60% 調參，後 40% 完全沒看過的資料才拿來報告 ---------- */
+async function optimize(){
+ if(draws.length<200){alert("資料不足，至少需要約 200 期");return}
+ prep();
+ const k=+$("kOpt").value,trials=+$("trials").value,want=+$("btN").value,t0=Math.max(100,N-want),T=[],M=[];
+ for(let t=t0;t<N;t++){T.push(t);M.push(featAt(t))}
+ const cut=Math.floor(T.length*.6),tr=[...Array(cut).keys()],te=[...Array(T.length-cut).keys()].map(i=>i+cut);
+ const pg=$("prog");pg.style.display="block";
+ let bs=-1,bw=null;
+ for(let i=0;i<trials;i++){
+  const w=Array.from({length:NF},()=>Math.random()*2-1),s=mean(hitsList(w,k,T,M,tr));
+  if(s>bs){bs=s;bw=w}
+  if(i%20==0){pg.value=i/trials*100;$("optStatus").textContent=`最佳化中… ${i}/${trials}`;await tick()}
+ }
+ best=bw;pg.style.display="none";
+ const h=hitsList(best,k,T,M,te),n=h.length,m=mean(h),exp=k/4,
+  v=k*.25*.75*(NUM-k)/(NUM-1),se=Math.sqrt(v/n),z=(m-exp)/se,d=m-exp;
+ $("mAvg").textContent=m.toFixed(2);$("rAvg").textContent=exp.toFixed(2);
+ $("delta").textContent=(d>=0?"+":"")+d.toFixed(2);
+ const ev=z>=2?"有訊號":z<=-2?"劣於隨機":"不足";
+ $("evidence").textContent=ev;$("evidence").className=z>=2?"good":z<=-2?"bad":"warn";
+ $("diag").innerHTML=`調參區平均命中 ${bs.toFixed(2)}（已被挑選過，會偏高）→ 全新資料 ${n} 期平均 ${m.toFixed(2)}，隨機期望 ${exp.toFixed(2)}，z = ${z.toFixed(2)}。<br>`+
+  (z>=2?"樣本外有超出隨機的跡象，但只驗證一段時間，請換不同時段再測；不代表能提高下一期中獎率。":
+   "沒有足夠證據優於隨機。調參區的高分通常只是雜訊，樣本外回到期望值附近是預期中的結果。");
+ $("optStatus").textContent=`完成：用 ${cut} 期調參、${n} 期驗證。`;
+ runCurrent();
+}
+function runCurrent(){
+ if(draws.length<60)return;
+ if(!best)best=[1,.7,.4,.2,0,.5,0];
+ prep();const F=featAt(N),s=scoreOf(F,best);
+ window._sc=topIdx(s,NUM).map(i=>({n:i+1,s:s[i],f20:F[i*NF],f50:F[i*NF+1],f100:F[i*NF+2],miss:F[i*NF+4]}));
+ $("pool").innerHTML=_sc.slice(0,16).map((o,i)=>`<span class="ball ${i<6?'hot':''}">${String(o.n).padStart(2,"0")}</span>`).join("");
+ $("rank").innerHTML="<table><tr><th>#</th><th>號碼</th><th>分數</th><th>20期</th><th>50期</th><th>100期</th><th>遺漏</th></tr>"+
+ _sc.slice(0,25).map((o,i)=>`<tr><td>${i+1}</td><td>${String(o.n).padStart(2,"0")}</td><td>${o.s.toFixed(2)}</td><td>${o.f20.toFixed(2)}</td><td>${o.f50.toFixed(2)}</td><td>${o.f100.toFixed(2)}</td><td>${o.miss.toFixed(2)}</td></tr>`).join("")+"</table>";
+}
+function makeCombos(){
+ if(!window._sc){alert("請先載入資料並分析");return}
+ const k=+$("kOpt").value,n=+$("sets").value,pool=_sc.slice(0,16),out=[];
+ for(let j=0;j<n;j++){
+  const c=pool.map(o=>({n:o.n,v:o.s+Math.random()*1.4})).sort((a,b)=>b.v-a.v).slice(0,k).map(o=>o.n).sort((a,b)=>a-b);
+  out.push(c);
+ }
+ $("combos").innerHTML=out.map((a,i)=>`<div class="combo"><b>${i+1}.</b> ${a.map(n=>`<span class="ball blue">${String(n).padStart(2,"0")}</span>`).join("")}</div>`).join("");
+}
+
+/* ---------- 抓取官方歷史獎號 ---------- */
+const routes=()=>{const r=[u=>u],p=$("proxy").value.trim();if(p)r.push(u=>p+encodeURIComponent(u));
+ r.push(u=>"https://corsproxy.io/?url="+encodeURIComponent(u),u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u));return r};
+async function getJSON(url){
+ const R=routes(),order=R.map((_,i)=>i);
+ if(route!=null&&route<R.length){order.splice(order.indexOf(route),1);order.unshift(route)}
+ let err;
+ for(const i of order){
+  try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),15000);
+   const r=await fetch(R[i](url),{cache:"no-store",signal:c.signal});clearTimeout(tm);
+   if(!r.ok)throw Error("HTTP "+r.status);const j=await r.json();route=i;return j}
+  catch(e){err=e;lastErr=`路線${i}：${e.message}`}
+ }
+ throw err;
+}
+function pick(x){
+ for(const key of ["bigShowOrder","openShowOrder","drawNumberAppear","numbers"]){
+  let v=x[key];if(typeof v==="string")v=v.split(/[ ,]+/);
+  if(Array.isArray(v)){const a=[...new Set(v.map(Number).filter(n=>n>=1&&n<=NUM))];if(a.length>=20)return a.slice(0,20)}
+ }
+ return null;
+}
+function parse(j){
+ const out=[];
+ (function walk(o){
+  if(Array.isArray(o)){for(const x of o){if(x&&typeof x==="object"&&!Array.isArray(x)){const a=pick(x);
+    if(a)out.push({p:+x.drawTerm||+x.period||0,a});else walk(x)}}}
+  else if(o&&typeof o==="object")for(const k in o)walk(o[k]);
+ })(j);
+ return out;
+}
+async function fetchApi(){
+ const days=+$("days").value,pg=$("fprog");pg.style.display="block";pg.value=0;
+ const got=new Map(),now=Date.now()+8*3600e3,q=Array.from({length:days},(_,i)=>new Date(now-i*864e5).toISOString().slice(0,10));
+ let done=0,fail=0;lastErr="";
+ async function day(d){
+  for(let p=1;p<=12;p++){
+   const j=await getJSON(`${BASE}?openDate=${d}&pageNum=${p}&pageSize=50`),rows=parse(j);
+   let fresh=0;rows.forEach(r=>{if(r.p&&!got.has(r.p)){got.set(r.p,r);fresh++}});
+   const total=j&&j.content&&j.content.totalSize;
+   if(!fresh||(total!=null&&p*50>=total))break;
+  }
+ }
+ await Promise.all(Array.from({length:4},async()=>{
+  while(q.length){const d=q.shift();try{await day(d)}catch(e){fail++}
+   done++;pg.value=done/days*100;setStatus(`抓取中… ${done}/${days} 天，已取得 ${got.size} 期`)}
+ }));
+ pg.style.display="none";
+ const rows=[...got.values()].sort((a,b)=>a.p-b.p);
+ if(rows.length<200){
+  setStatus(`抓取失敗：只取得 ${rows.length} 期（${fail} 天出錯）。\n最後錯誤：${lastErr||"回傳格式無法辨識"}\n請展開「抓取失敗時」填入代理，或改用 CSV。`);return false;
+ }
+ draws=rows.map(r=>r.a);
+ try{localStorage.setItem("bingoCache",JSON.stringify(draws))}catch(e){}
+ setStatus(`已取得 ${draws.length} 期（第 ${rows[0].p} ～ ${rows[rows.length-1].p} 期）${fail?`；有 ${fail} 天失敗`:""}。`);
+ return true;
+}
+async function oneClick(){
+ $("goBtn").disabled=true;
+ try{if(await fetchApi())await optimize()}finally{$("goBtn").disabled=false}
+}
+
+/* ---------- CSV / 測試資料 / 快取 ---------- */
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{
+ try{
+  const a=r.result.replace(/^\uFEFF/,"").trim().split(/\r?\n/),head=a[0].split(",").map(s=>s.trim().toLowerCase());
+  const cols=head.map((x,i)=>({x,i})).filter(o=>/^n\d+$/.test(o.x)).sort((p,q)=>+p.x.slice(1)-+q.x.slice(1)),pi=head.indexOf("period"),di=head.indexOf("date");
+  let rows=a.slice(1).map(l=>{const q=l.split(",");return{p:pi>=0?+q[pi]:0,d:di>=0?q[di]:"",a:cols.slice(0,20).map(o=>+q[o.i]).filter(n=>n>=1&&n<=NUM)}}).filter(x=>x.a.length===20);
+  let how="依檔案順序（視為由舊到新）";
+  if(rows.every(x=>x.p>0)){rows.sort((a,b)=>a.p-b.p);how="依期別排序"}
+  else if(rows.every(x=>x.d)){rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);how="依日期排序"}
+  draws=rows.map(x=>x.a);setStatus(`已載入 ${draws.length} 期（${how}）。按「只重新最佳化」開始。`);
+ }catch(err){alert("CSV 格式錯誤")}};r.readAsText(f)};
+function loadDemo(){draws=[];let x=9281;for(let d=0;d<600;d++){const a=[];while(a.length<20){x=(Math.imul(x,1664525)+1013904223)>>>0;const n=(x>>>8)%80+1;if(!a.includes(n))a.push(n)}draws.push(a)}
+ setStatus("已載入 600 期模擬資料（不是實際開獎）。")}
+try{const c=JSON.parse(localStorage.getItem("bingoCache")||"null");if(c&&c.length>=200){draws=c;setStatus(`已從上次快取載入 ${c.length} 期；按上方「一鍵抓取」可更新。`);runCurrent()}}catch(e){}
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script></body></html>
